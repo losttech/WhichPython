@@ -3,6 +3,14 @@
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
     <LangVersion>latest</LangVersion>
+    <PackageId>WhichPython</PackageId>
+    <Version>0.1.0</Version>
+    <Authors>Lost Tech LLC</Authors>
+    <Product>Which Python</Product>
+    <PackageLicenseUrl>https://raw.githubusercontent.com/losttech/WhichPython/master/LICENSE</PackageLicenseUrl>
+    <PackageProjectUrl>https://github.com/losttech/WhichPython</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/losttech/WhichPython.git</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
   </PropertyGroup>
 
   <ItemGroup>
