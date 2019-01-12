@@ -11,11 +11,13 @@
     using Microsoft.Win32;
 
     public class PythonEnvironment {
+        public string InterpreterPath { get; }
         public string Home { get; }
         public Version LanguageVersion { get; }
         public Architecture? Architecture { get; }
 
-        public PythonEnvironment(string home, Version languageVersion, Architecture? architecture) {
+        public PythonEnvironment(string interpreterPath, string home, Version languageVersion, Architecture? architecture) {
+            this.InterpreterPath = interpreterPath ?? throw new ArgumentNullException(nameof(interpreterPath));
             this.Home = home ?? throw new ArgumentNullException(nameof(home));
             this.LanguageVersion = languageVersion;
             this.Architecture = architecture;
@@ -106,9 +108,12 @@
                         continue;
 
                     string home = installPath.GetValue("") as string;
-                    if (home != null && enumerated.Add(home)) {
+                    if (home == null) continue;
+                    string interpreterPath = Path.Combine(home, "python.exe");
+                    if (!File.Exists(interpreterPath)) continue;
+                    if (enumerated.Add(home)) {
                         Version.TryParse(majorVersion, out var version);
-                        yield return new PythonEnvironment(home, version, abi);
+                        yield return new PythonEnvironment(interpreterPath, home, version, abi);
                     }
                 }
             }
@@ -129,7 +134,9 @@
 
             var version = versionDuplet == null ? null : new Version(versionDuplet.Value / 10, versionDuplet.Value % 10);
 
-            return new PythonEnvironment(home, version, null);
+            string interpreterPath = Path.Combine(home, "python.exe");
+            if (!File.Exists(interpreterPath)) return null;
+            return new PythonEnvironment(interpreterPath, home: home, version, null);
         }
 
         static readonly Regex FileNameVersionRegex = new Regex(@"[a-zA-Z]+(?<ver>\d\.\d)(\.exe)?");
@@ -146,7 +153,7 @@
                 home = TryLocateSo(version);
             }
             return home != null
-                ? new PythonEnvironment(home: home, languageVersion: version, architecture: null)
+                ? new PythonEnvironment(interpreterPath: potentialInterpreter, home: home, languageVersion: version, architecture: null)
                 : null;
         }
 
