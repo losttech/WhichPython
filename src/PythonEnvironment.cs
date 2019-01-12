@@ -1,10 +1,12 @@
 ﻿namespace LostTech.WhichPython {
     using System;
     using System.Collections.Generic;
+    using System.Diagnostics;
     using System.Globalization;
     using System.IO;
     using System.Linq;
     using System.Runtime.InteropServices;
+    using System.Text.RegularExpressions;
     using System.Threading;
     using Microsoft.Win32;
 
@@ -22,7 +24,11 @@
         public static IEnumerable<PythonEnvironment> EnumerateEnvironments(CancellationToken cancellation = default) {
             var found = new SortedSet<string>();
 
-            foreach (var environment in EnumerateWindowsEnvironments(found, cancellation))
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+                foreach (var environment in EnumerateWindowsEnvironments(found, cancellation))
+                    yield return environment;
+
+            foreach(var environment in EnumeratePathEnvironments(found, cancellation))
                 yield return environment;
         }
 
@@ -50,6 +56,36 @@
                 if (environment != null)
                     yield return environment;
             }
+        }
+
+        public static IEnumerable<PythonEnvironment> EnumeratePathEnvironments(IEnumerable<string> paths, string interpreterFileNameMask = "python*", CancellationToken cancellation = default){
+            if (paths == null) throw new ArgumentNullException(nameof(paths));
+            if (interpreterFileNameMask == null) throw new ArgumentNullException(nameof(interpreterFileNameMask));
+
+            foreach(string directory in paths){
+                if (!Directory.Exists(directory))
+                    continue;
+                foreach(string potentialInterpreter in Directory.EnumerateFiles(directory, interpreterFileNameMask)) {
+                    cancellation.ThrowIfCancellationRequested();
+
+                    var env = TryDetectEnvironmentFromInterpreter(potentialInterpreter, cancellation);
+                    if (env != null)
+                        yield return env;
+                }
+            }
+        }
+
+        static IEnumerable<PythonEnvironment> EnumeratePathEnvironments(ISet<string> enumerated, CancellationToken cancellation){
+            bool windows = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
+            char pathSeparator = windows ? ';' : ':';
+            string[] paths = Environment.GetEnvironmentVariable("PATH")?.Split(pathSeparator);
+            string interpreterFileNameMask = windows ? "python.exe" : "python?.?";
+            if (paths == null)
+                yield break;
+
+            foreach(var env in EnumeratePathEnvironments(paths, interpreterFileNameMask, cancellation))
+                if (enumerated.Add(env.Home))
+                    yield return env;
         }
 
         static IEnumerable<PythonEnvironment> EnumerateWindowsEnvironments(ISet<string> enumerated, CancellationToken cancellation) {
@@ -94,6 +130,53 @@
             var version = versionDuplet == null ? null : new Version(versionDuplet.Value / 10, versionDuplet.Value % 10);
 
             return new PythonEnvironment(home, version, null);
+        }
+
+        static readonly Regex FileNameVersionRegex = new Regex(@"[a-zA-Z]+(?<ver>\d\.\d)(\.exe)?");
+        static PythonEnvironment TryDetectEnvironmentFromInterpreter(string potentialInterpreter, CancellationToken cancellation = default) {
+            if (!File.Exists(potentialInterpreter)) return null;
+
+            cancellation.ThrowIfCancellationRequested();
+
+            var match = FileNameVersionRegex.Match(potentialInterpreter);
+            if (!match.Success) return null;
+            if (!Version.TryParse(match.Groups["ver"].Value, out var version)) return null;
+            string home = null;
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux)){
+                home = TryLocateSo(version);
+            }
+            return home != null
+                ? new PythonEnvironment(home: home, languageVersion: version, architecture: null)
+                : null;
+        }
+
+        static string TryLocateSo(Version version) {
+            // HACK always returns global installation, if any at all
+            string fileName = FormattableString.Invariant($"libpython{version.Major}.{version.Minor}.so");
+            var locateStartInfo = new ProcessStartInfo("locate", fileName){
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                UseShellExecute = false,
+            };
+
+            string[] paths;
+
+            try{
+                var locate = Process.Start(locateStartInfo);
+                if (!locate.WaitForExit(500)){
+                    locate.Kill();
+                    return null;
+                }
+                paths = locate.StandardOutput.ReadToEnd()
+                    .Split(new []{Environment.NewLine}, StringSplitOptions.RemoveEmptyEntries)
+                    .ToArray();
+                if (paths.Length == 1) return Path.GetDirectoryName(paths[0]);
+                return null;
+            } catch(PlatformNotSupportedException) {
+                return null;
+            } catch(System.ComponentModel.Win32Exception notFound) when (notFound.NativeErrorCode == 2){
+                return null;
+            }
         }
     }
 }
