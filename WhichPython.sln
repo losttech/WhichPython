@@ -1,11 +1,9 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 16
-VisualStudioVersion = 16.0.28315.86
+# Visual Studio 15
+VisualStudioVersion = 15.0.28307.271
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "LostTech.WhichPython", "src\LostTech.WhichPython.csproj", "{7B68FA6F-D206-4560-B8DB-DF79FFECF2F3}"
-EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "WhichPython", "app\WhichPython.csproj", "{218E2C1D-F3AC-4FF9-A147-FCDAEDD40F6A}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Repo", "Repo", "{58BD14BE-AD9A-4CB1-A512-F0BBABC94B2E}"
 	ProjectSection(SolutionItems) = preProject
@@ -13,6 +11,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Repo", "Repo", "{58BD14BE-A
 		LICENSE = LICENSE
 		README.md = README.md
 	EndProjectSection
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "WhichPython.App", "app\WhichPython.App.csproj", "{9BC6BDB7-CE49-422F-8B97-1D55C711BE09}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -24,10 +24,10 @@ Global
 		{7B68FA6F-D206-4560-B8DB-DF79FFECF2F3}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{7B68FA6F-D206-4560-B8DB-DF79FFECF2F3}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{7B68FA6F-D206-4560-B8DB-DF79FFECF2F3}.Release|Any CPU.Build.0 = Release|Any CPU
-		{218E2C1D-F3AC-4FF9-A147-FCDAEDD40F6A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{218E2C1D-F3AC-4FF9-A147-FCDAEDD40F6A}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{218E2C1D-F3AC-4FF9-A147-FCDAEDD40F6A}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{218E2C1D-F3AC-4FF9-A147-FCDAEDD40F6A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{9BC6BDB7-CE49-422F-8B97-1D55C711BE09}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9BC6BDB7-CE49-422F-8B97-1D55C711BE09}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9BC6BDB7-CE49-422F-8B97-1D55C711BE09}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9BC6BDB7-CE49-422F-8B97-1D55C711BE09}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
