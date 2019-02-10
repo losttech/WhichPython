@@ -13,12 +13,14 @@
     public class PythonEnvironment {
         public string InterpreterPath { get; }
         public string Home { get; }
+        public string DynamicLibraryPath {get;set;}
         public Version LanguageVersion { get; }
         public Architecture? Architecture { get; }
 
-        public PythonEnvironment(string interpreterPath, string home, Version languageVersion, Architecture? architecture) {
+        public PythonEnvironment(string interpreterPath, string home, string dll, Version languageVersion, Architecture? architecture) {
             this.InterpreterPath = interpreterPath ?? throw new ArgumentNullException(nameof(interpreterPath));
-            this.Home = home ?? throw new ArgumentNullException(nameof(home));
+            this.Home = home;
+            this.DynamicLibraryPath = dll;
             this.LanguageVersion = languageVersion;
             this.Architecture = architecture;
         }
@@ -111,13 +113,20 @@
                     if (home == null) continue;
                     string interpreterPath = Path.Combine(home, "python.exe");
                     if (!File.Exists(interpreterPath)) continue;
-                    if (enumerated.Add(home)) {
-                        Version.TryParse(majorVersion, out var version);
-                        yield return new PythonEnvironment(interpreterPath, home, version, abi);
+                    if (enumerated.Add(home))
+                    {
+                        bool hasVer = Version.TryParse(majorVersion, out var version);
+                        string dll = hasVer ? GetDll(home, version) : null;
+                        if (dll != null && !File.Exists(dll))
+                            dll = null;
+                        yield return new PythonEnvironment(interpreterPath, home, dll: dll, version, abi);
                     }
                 }
             }
         }
+
+        static string GetDll(string home, Version version)
+            => Path.Combine(home, FormattableString.Invariant($"python{version.Major}{version.Minor}.dll"));
 
         static PythonEnvironment DetectEnvironment(string home, CancellationToken cancellation) {
             if (!Directory.Exists(home))
@@ -136,7 +145,9 @@
 
             string interpreterPath = Path.Combine(home, "python.exe");
             if (!File.Exists(interpreterPath)) return null;
-            return new PythonEnvironment(interpreterPath, home: home, version, null);
+            return new PythonEnvironment(interpreterPath, home: home,
+                dll: version != null ? GetDll(home, version) : null,
+                version, null);
         }
 
         static readonly Regex FileNameVersionRegex = new Regex(@"[a-zA-Z]+(?<ver>\d\.\d)(\.exe)?");
@@ -149,35 +160,41 @@
             if (!match.Success) return null;
             if (!Version.TryParse(match.Groups["ver"].Value, out var version)) return null;
             string home = null;
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux)){
-                home = TryLocateSo(version);
+            string dll = null;
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows)){
+                home = Path.GetDirectoryName(potentialInterpreter);
+                dll = GetDll(home, version);
+                if (dll != null && !File.Exists(dll))
+                    dll = null;
             }
-            return home != null
-                ? new PythonEnvironment(interpreterPath: potentialInterpreter, home: home, languageVersion: version, architecture: null)
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux)){
+                dll = TryLocateSo(potentialInterpreter);
+            }
+            return home != null || dll != null
+                ? new PythonEnvironment(interpreterPath: potentialInterpreter,
+                    home: home, dll: dll,
+                    languageVersion: version, architecture: null)
                 : null;
         }
 
-        static string TryLocateSo(Version version) {
-            // HACK always returns global installation, if any at all
-            string fileName = FormattableString.Invariant($"libpython{version.Major}.{version.Minor}.so");
-            var locateStartInfo = new ProcessStartInfo("locate", fileName){
+        static string TryLocateSo(string interpreterPath) {
+            var getMemMapStartInfo = new ProcessStartInfo(interpreterPath, $"-c \"{GetMemMapScript}\""){
                 CreateNoWindow = true,
                 RedirectStandardOutput = true,
                 UseShellExecute = false,
             };
 
-            string[] paths;
-
             try{
-                var locate = Process.Start(locateStartInfo);
-                if (!locate.WaitForExit(500)){
-                    locate.Kill();
+                var getMemMap = Process.Start(getMemMapStartInfo);
+                if (!getMemMap.WaitForExit(500)){
+                    getMemMap.Kill();
                     return null;
                 }
-                paths = locate.StandardOutput.ReadToEnd()
+                string stdout = getMemMap.StandardOutput.ReadToEnd();
+                string[] paths = stdout
                     .Split(new []{Environment.NewLine}, StringSplitOptions.RemoveEmptyEntries)
                     .ToArray();
-                if (paths.Length == 1) return Path.GetDirectoryName(paths[0]);
+                if (paths.Length == 1) return paths[0];
                 return null;
             } catch(PlatformNotSupportedException) {
                 return null;
@@ -185,5 +202,7 @@
                 return null;
             }
         }
+
+        const string GetMemMapScript = @"from distutils import sysconfig; import os.path as op; v = sysconfig.get_config_vars(); fpaths = [op.join(v[pv], v['LDLIBRARY']) for pv in ('LIBDIR', 'LIBPL')]; print(list(filter(op.exists, fpaths))[0])";
     }
 }
