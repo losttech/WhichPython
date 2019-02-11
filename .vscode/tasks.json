@@ -12,6 +12,17 @@
                 "cwd": "${workspaceFolder}/app/"
             },
             "problemMatcher": "$msCompile"
+        },
+        {
+            "label": "publish",
+            "command": "dotnet",
+            "type": "process",
+            "args": [
+                "publish",
+                "${workspaceFolder}/app/WhichPython.App.csproj",
+                "-o",
+                "${workspaceFolder}/app/bin/publish"
+            ]
         }
     ]
 }

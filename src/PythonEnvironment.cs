@@ -186,7 +186,7 @@
 
             try{
                 var getMemMap = Process.Start(getMemMapStartInfo);
-                if (!getMemMap.WaitForExit(500)){
+                if (!getMemMap.WaitForExit(5000)){
                     getMemMap.Kill();
                     return null;
                 }
