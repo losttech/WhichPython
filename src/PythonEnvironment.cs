@@ -167,7 +167,8 @@
                 if (dll != null && !File.Exists(dll))
                     dll = null;
             }
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux)){
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux)
+                || RuntimeInformation.IsOSPlatform(OSPlatform.OSX)){
                 dll = TryLocateSo(potentialInterpreter);
             }
             return home != null || dll != null
@@ -178,23 +179,31 @@
         }
 
         static string TryLocateSo(string interpreterPath) {
-            var getMemMapStartInfo = new ProcessStartInfo(interpreterPath, $"-c \"{GetMemMapScript}\""){
+            string getLibPathsScript = RuntimeInformation.IsOSPlatform(OSPlatform.Linux)
+                ? LinuxGetLibPathsScript
+                : MacGetLibPathsScript;
+            var getLibPathsStartInfo = new ProcessStartInfo(interpreterPath, $"-c \"{getLibPathsScript}\""){
                 CreateNoWindow = true,
                 RedirectStandardOutput = true,
                 UseShellExecute = false,
             };
 
             try{
-                var getMemMap = Process.Start(getMemMapStartInfo);
-                if (!getMemMap.WaitForExit(5000)){
-                    getMemMap.Kill();
+                var getLibPaths = Process.Start(getLibPathsStartInfo);
+                if (!getLibPaths.WaitForExit(5000)){
+                    getLibPaths.Kill();
                     return null;
                 }
-                string stdout = getMemMap.StandardOutput.ReadToEnd();
+                string stdout = getLibPaths.StandardOutput.ReadToEnd();
                 string[] paths = stdout
                     .Split(new []{Environment.NewLine}, StringSplitOptions.RemoveEmptyEntries)
                     .ToArray();
-                if (paths.Length == 1) return paths[0];
+                if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+                    if (paths.Length == 1) return paths[0];
+                if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX)) {
+                    return paths.Select(libPath => Path.ChangeExtension(libPath, ".dylib"))
+                                .FirstOrDefault(File.Exists);
+                }
                 return null;
             } catch(PlatformNotSupportedException) {
                 return null;
@@ -203,6 +212,7 @@
             }
         }
 
-        const string GetMemMapScript = @"from distutils import sysconfig; import os.path as op; v = sysconfig.get_config_vars(); fpaths = [op.join(v[pv], v['LDLIBRARY']) for pv in ('LIBDIR', 'LIBPL')]; print(list(filter(op.exists, fpaths))[0])";
+        const string LinuxGetLibPathsScript = @"from distutils import sysconfig; import os.path as op; v = sysconfig.get_config_vars(); fpaths = [op.join(v[pv], v['LDLIBRARY']) for pv in ('LIBDIR', 'LIBPL')]; print(list(filter(op.exists, fpaths))[0])";
+        const string MacGetLibPathsScript = @"from distutils import sysconfig; import os.path as op; v = sysconfig.get_config_vars(); fpaths = [op.join(v[pv], v['LIBRARY']) for pv in ('LIBDIR', 'LIBPL')]; print(list(filter(op.exists, fpaths))[0])";
     }
 }
