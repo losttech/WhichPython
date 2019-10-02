@@ -134,7 +134,7 @@
                 yield break;
 
             foreach(var env in EnumeratePathEnvironments(paths, interpreterFileNameMask, cancellation))
-                if (enumerated.Add(env.Home))
+                if (enumerated.Add(env.DynamicLibraryPath))
                     yield return env;
         }
 
