@@ -5,7 +5,7 @@
     <LangVersion>8.0</LangVersion>
     <Nullable>enable</Nullable>
     <PackageId>WhichPython</PackageId>
-    <Version>0.3.0</Version>
+    <VersionPrefix>0.3.0</VersionPrefix>
     <Authors>Lost Tech LLC</Authors>
     <Product>Which Python</Product>
     <PackageLicenseUrl>https://raw.githubusercontent.com/losttech/WhichPython/master/LICENSE</PackageLicenseUrl>
