@@ -54,6 +54,9 @@ steps:
 
       $pyEnvs = (dotnet run --project app/WhichPython.App.csproj) | Out-String
       if (-Not $pyEnvs.Contains("$(GetPython.pythonLocation)")) {
-          Write-Host "##vso[task.logissue type=error]$pyEnvs"
+          Write-Host "$env:PATH"
+          Write-Host "$pyEnvs"
           exit 1
+      } else {
+          Write-Host $pyEnvs
       }
