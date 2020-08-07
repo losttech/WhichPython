@@ -129,11 +129,9 @@
             }
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux)
                 || RuntimeInformation.IsOSPlatform(OSPlatform.OSX)) {
-                dllPath = TryLocateSo(interpreter);
+                dllPath = LocateSo(interpreter);
                 if (dllPath != null) {
                     home = TryGuessUnixHome(interpreter, version, dllPath: dllPath);
-                } else {
-                    throw new NotSupportedException("Unable to find dynamic library");
                 }
             }
 
@@ -321,25 +319,42 @@
             }
         }
 
+        static string LocateSo(FileInfo interpreterPath) {
+            string? libPathsOutput = TryGetLibPaths(interpreterPath);
+            if (libPathsOutput is null)
+                throw new NotSupportedException("Unable to get lib paths");
+            string? so = TryGetDllFromGetLibPathsOutput(libPathsOutput);
+            return so ?? throw new NotImplementedException("Unable to find DLL in lib paths: " + libPathsOutput);
+        }
+
         static string? TryLocateSo(FileInfo interpreterPath) {
+            string? libPathsOutput = TryGetLibPaths(interpreterPath);
+            if (libPathsOutput is null) return null;
+            return TryGetDllFromGetLibPathsOutput(libPathsOutput);
+        }
+
+        static string? TryGetLibPaths(FileInfo interpreterPath) {
             if (interpreterPath is null) throw new ArgumentNullException(nameof(interpreterPath));
 
             string getLibPathsScript = RuntimeInformation.IsOSPlatform(OSPlatform.Linux)
                 ? LinuxGetLibPathsScript
                 : MacGetLibPathsScript;
 
-            string? stdout = TryRunScript(interpreterPath, getLibPathsScript);
-            if (stdout is null) return null;
+            return TryRunScript(interpreterPath, getLibPathsScript);
+        }
 
+        static string? TryGetDllFromGetLibPathsOutput(string stdout) {
             string[] paths = stdout
-                .Split(new []{Environment.NewLine}, StringSplitOptions.RemoveEmptyEntries)
+                .Split(new[] {Environment.NewLine}, StringSplitOptions.RemoveEmptyEntries)
                 .ToArray();
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-                if (paths.Length == 1) return paths[0];
+                if (paths.Length == 1)
+                    return paths[0];
             if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX)) {
                 return paths.Select(libPath => Path.ChangeExtension(libPath, ".dylib"))
-                            .FirstOrDefault(File.Exists);
+                    .FirstOrDefault(File.Exists);
             }
+
             return null;
         }
 
