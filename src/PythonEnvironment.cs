@@ -238,6 +238,8 @@
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux)
                 || RuntimeInformation.IsOSPlatform(OSPlatform.OSX)){
                 dllPath = TryLocateSo(potentialInterpreter);
+                if (dllPath != null)
+                    home = TryGuessHome(potentialInterpreter, dllPath: dllPath);
             }
             return home != null || dllPath != null
                 ? new PythonEnvironment(interpreterPath: potentialInterpreter,
@@ -304,6 +306,30 @@
                             .FirstOrDefault(File.Exists);
             }
             return null;
+        }
+
+        static DirectoryInfo? TryGuessHome(FileInfo interpreterPath, string dllPath) {
+            var candidate = interpreterPath.Directory;
+            var dllDir = new FileInfo(dllPath).Directory;
+            if (IsSubDirectory(parent: candidate, child: dllDir))
+                return candidate;
+
+            if (candidate.Name == "bin" && candidate.Parent != null) {
+                candidate = candidate.Parent;
+                if (IsSubDirectory(candidate, child: dllDir))
+                    return candidate;
+            }
+
+            return null;
+        }
+
+        static bool IsSubDirectory(DirectoryInfo parent, DirectoryInfo child) {
+            if (child.FullName.Length < parent.FullName.Length) return false;
+
+            if ((child.FullName + Path.DirectorySeparatorChar).StartsWith(parent.FullName + Path.DirectorySeparatorChar, StringComparison.Ordinal))
+                return true;
+
+            return !(child.Parent is null) && IsSubDirectory(parent, child.Parent);
         }
 
         const string PrintVersionScript = "import sys; print(str(sys.version_info[0]) + '.' + str(sys.version_info[1])+ '.' + str(sys.version_info[2]))";
