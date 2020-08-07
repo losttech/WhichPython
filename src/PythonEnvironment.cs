@@ -112,18 +112,21 @@
         /// <summary>
         /// Enumerate Python environments, listed in the PATH environment variable.
         /// </summary>
-        static IEnumerable<PythonEnvironment> EnumeratePathEnvironments(ISet<string?> enumerated, CancellationToken cancellation){
+        static IEnumerable<PythonEnvironment> EnumeratePathEnvironments(ISet<string?> enumerated, CancellationToken cancellation) {
             bool windows = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
             char pathSeparator = windows ? ';' : ':';
             DirectoryInfo[]? paths = Environment.GetEnvironmentVariable("PATH")
-                ?.Split(new[]{pathSeparator}, StringSplitOptions.RemoveEmptyEntries)
+                ?.Split(new[] { pathSeparator }, StringSplitOptions.RemoveEmptyEntries)
                 .Select(dirPath => new DirectoryInfo(dirPath))
                 .ToArray();
             if (paths == null)
                 yield break;
 
-            string interpreterFileNameMask = windows ? "python.exe" : "python?.?";
-            foreach (var env in EnumeratePathEnvironments(paths, interpreterFileNameMask, cancellation)) {
+            string[] interpreterFileNameMasks = windows
+                ? new[] { "python.exe" }
+                : new[] { "python?.?", "python" };
+            foreach (var env in interpreterFileNameMasks.SelectMany(
+                                    mask => EnumeratePathEnvironments(paths, mask, cancellation))) {
                 if (enumerated.Add(env.DynamicLibraryPath?.FullName))
                     yield return env;
             }
@@ -221,9 +224,9 @@
 
             cancellation.ThrowIfCancellationRequested();
 
-            var match = FileNameVersionRegex.Match(potentialInterpreter.Name);
-            if (!match.Success) return null;
-            if (!Version.TryParse(match.Groups["ver"].Value, out var version)) return null;
+            var version = TryGetVersion(potentialInterpreter);
+            if (version is null) return null;
+
             DirectoryInfo? home = null;
             string? dllPath = null;
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows)){
@@ -244,41 +247,66 @@
                 : null;
         }
 
+        static Version? TryGetVersion(FileInfo interpreter) {
+            string? versionString = TryGetVersionString(interpreter);
+            if (versionString is null) return null;
+            return Version.TryParse(versionString, out var version) ? version : null;
+        }
+
+        static string? TryGetVersionString(FileInfo interpreter) {
+            var match = FileNameVersionRegex.Match(interpreter.Name);
+            if (match.Success)
+                return match.Groups["ver"].Value;
+
+            if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows) && interpreter.Name == "python")
+                return TryRunScript(interpreter, PrintVersionScript);
+
+            return null;
+        }
+
+        static string? TryRunScript(FileInfo interpreter, string script, int timeoutMilliseconds = 5000) {
+            var startInfo = new ProcessStartInfo(interpreter.FullName, $"-c \"{script}\"") {
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                UseShellExecute = false,
+            };
+            try {
+                var process = Process.Start(startInfo);
+                if (!process.WaitForExit(timeoutMilliseconds)) {
+                    process.Kill();
+                    return null;
+                }
+                return process.StandardOutput.ReadToEnd();
+            } catch (PlatformNotSupportedException) {
+                return null;
+            } catch (System.ComponentModel.Win32Exception notFound) when (notFound.NativeErrorCode == 2) {
+                return null;
+            }
+        }
+
         static string? TryLocateSo(FileInfo interpreterPath) {
             if (interpreterPath is null) throw new ArgumentNullException(nameof(interpreterPath));
 
             string getLibPathsScript = RuntimeInformation.IsOSPlatform(OSPlatform.Linux)
                 ? LinuxGetLibPathsScript
                 : MacGetLibPathsScript;
-            var getLibPathsStartInfo = new ProcessStartInfo(interpreterPath.FullName, $"-c \"{getLibPathsScript}\""){
-                CreateNoWindow = true,
-                RedirectStandardOutput = true,
-                UseShellExecute = false,
-            };
 
-            try{
-                var getLibPaths = Process.Start(getLibPathsStartInfo);
-                if (!getLibPaths.WaitForExit(5000)){
-                    getLibPaths.Kill();
-                    return null;
-                }
-                string stdout = getLibPaths.StandardOutput.ReadToEnd();
-                string[] paths = stdout
-                    .Split(new []{Environment.NewLine}, StringSplitOptions.RemoveEmptyEntries)
-                    .ToArray();
-                if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-                    if (paths.Length == 1) return paths[0];
-                if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX)) {
-                    return paths.Select(libPath => Path.ChangeExtension(libPath, ".dylib"))
-                                .FirstOrDefault(File.Exists);
-                }
-                return null;
-            } catch(PlatformNotSupportedException) {
-                return null;
-            } catch(System.ComponentModel.Win32Exception notFound) when (notFound.NativeErrorCode == 2){
-                return null;
+            string? stdout = TryRunScript(interpreterPath, getLibPathsScript);
+            if (stdout is null) return null;
+
+            string[] paths = stdout
+                .Split(new []{Environment.NewLine}, StringSplitOptions.RemoveEmptyEntries)
+                .ToArray();
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+                if (paths.Length == 1) return paths[0];
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX)) {
+                return paths.Select(libPath => Path.ChangeExtension(libPath, ".dylib"))
+                            .FirstOrDefault(File.Exists);
             }
+            return null;
         }
+
+        const string PrintVersionScript = "import sys; print(str(sys.version_info[0]) + '.' + str(sys.version_info[1])+ '.' + str(sys.version_info[2]))";
 
         const string LinuxGetLibPathsScript = "from distutils import sysconfig; import os.path as op; v = sysconfig.get_config_vars(); fpaths = [op.join(v[pv], v['LDLIBRARY']) for pv in ('LIBDIR', 'LIBPL')]; print(list(filter(op.exists, fpaths))[0])";
         const string MacGetLibPathsScript = "from distutils import sysconfig; import os.path as op; v = sysconfig.get_config_vars(); fpaths = [op.join(v[pv], v['LIBRARY']) for pv in ('LIBDIR', 'LIBPL')]; print(list(filter(op.exists, fpaths))[0])";
