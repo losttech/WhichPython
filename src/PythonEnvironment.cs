@@ -239,7 +239,7 @@
                 || RuntimeInformation.IsOSPlatform(OSPlatform.OSX)){
                 dllPath = TryLocateSo(potentialInterpreter);
                 if (dllPath != null)
-                    home = TryGuessHome(potentialInterpreter, dllPath: dllPath);
+                    home = TryGuessUnixHome(potentialInterpreter, version, dllPath: dllPath);
             }
             return home != null || dllPath != null
                 ? new PythonEnvironment(interpreterPath: potentialInterpreter,
@@ -308,31 +308,45 @@
             return null;
         }
 
-        static DirectoryInfo? TryGuessHome(FileInfo interpreterPath, string dllPath) {
+        static DirectoryInfo? TryGuessUnixHome(FileInfo interpreterPath, Version version, string dllPath) {
             var candidate = interpreterPath.Directory;
             var dllDir = new FileInfo(dllPath).Directory;
-            if (IsSubDirectory(parent: candidate, child: dllDir))
+            if (IsSubDirectoryOrSame(parent: candidate, child: dllDir))
                 return candidate;
 
             if (candidate.Name == "bin" && candidate.Parent != null) {
                 candidate = candidate.Parent;
-                if (IsSubDirectory(candidate, child: dllDir))
+                if (IsSubDirectoryOrSame(candidate, child: dllDir))
                     return candidate;
+            }
+
+            string? sysPaths = TryRunScript(interpreterPath, PrintSysPathScript);
+            if (sysPaths != null) {
+                var paths = sysPaths
+                    .Split(new[] { Environment.NewLine }, StringSplitOptions.RemoveEmptyEntries)
+                    .Select(path => new DirectoryInfo(path))
+                    .ToArray();
+                var home = paths.FirstOrDefault(path =>
+                        path.Name == Invariant($"python{version.Major}.{version.Minor}")
+                        && path.Parent != null && path.Parent.Name == "lib")?.Parent?.Parent;
+                if (home != null && IsSubDirectoryOrSame(home, child: interpreterPath.Directory))
+                    return home;
             }
 
             return null;
         }
 
-        static bool IsSubDirectory(DirectoryInfo parent, DirectoryInfo child) {
+        static bool IsSubDirectoryOrSame(DirectoryInfo parent, DirectoryInfo child) {
             if (child.FullName.Length < parent.FullName.Length) return false;
 
             if ((child.FullName + Path.DirectorySeparatorChar).StartsWith(parent.FullName + Path.DirectorySeparatorChar, StringComparison.Ordinal))
                 return true;
 
-            return !(child.Parent is null) && IsSubDirectory(parent, child.Parent);
+            return !(child.Parent is null) && IsSubDirectoryOrSame(parent, child.Parent);
         }
 
         const string PrintVersionScript = "import sys; print(str(sys.version_info[0]) + '.' + str(sys.version_info[1])+ '.' + str(sys.version_info[2]))";
+        const string PrintSysPathScript = @"import sys; print('\n'.join(sys.path))";
 
         const string LinuxGetLibPathsScript = "from distutils import sysconfig; import os.path as op; v = sysconfig.get_config_vars(); fpaths = [op.join(v[pv], v['LDLIBRARY']) for pv in ('LIBDIR', 'LIBPL')]; print(list(filter(op.exists, fpaths))[0])";
         const string MacGetLibPathsScript = "from distutils import sysconfig; import os.path as op; v = sysconfig.get_config_vars(); fpaths = [op.join(v[pv], v['LIBRARY']) for pv in ('LIBDIR', 'LIBPL')]; print(list(filter(op.exists, fpaths))[0])";
