@@ -50,9 +50,12 @@ steps:
     targetType: 'inline'
     script: |
       Write-Host "$(GetPython.pythonLocation)"
+      $interpreter = if ($IsWindows) { "python.exe" } else { "python" }
+      $interpreter = Join-Path "$(GetPython.pythonLocation)" $interpreter
+
       Get-ChildItem -Recurse "$(GetPython.pythonLocation)"
 
-      $pyEnvs = (dotnet run --project app/WhichPython.App.csproj) | Out-String
+      $pyEnvs = (dotnet run --project app/WhichPython.App.csproj interpreter "$interpreter") | Out-String
       if (-Not $pyEnvs.Contains("$(GetPython.pythonLocation)")) {
           Write-Host "$env:PATH"
           Write-Host "$pyEnvs"

@@ -12,4 +12,8 @@
     <ProjectReference Include="..\src\LostTech.WhichPython.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="ManyConsole.CommandLineUtils" Version="1.0.3-alpha" />
+  </ItemGroup>
+
 </Project>

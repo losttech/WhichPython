@@ -1,14 +1,13 @@
-﻿namespace WhichPython {
+﻿namespace LostTech.WhichPython {
     using System;
     using System.Linq;
-    using LostTech.WhichPython;
+    using ManyConsole.CommandLineUtils;
 
     static class WhichPythonProgram {
-        static void Main() {
-            foreach (var environment in PythonEnvironment.EnumerateEnvironments()
-                                .Concat(CondaEnvironment.EnumerateCondaEnvironments())) {
-                Console.WriteLine($"{environment.LanguageVersion?.ToString(2) ?? "??"}-{environment.Architecture?.ToString() ?? "???"} @ {environment.Home}");
-            }
+        static int Main(string[] args) {
+            return ConsoleCommandDispatcher.DispatchCommand(
+                ConsoleCommandDispatcher.FindCommandsInSameAssemblyAs(typeof(WhichPythonProgram)),
+                args, Console.Out);
         }
     }
 }

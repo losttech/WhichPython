@@ -109,6 +109,40 @@
             }
         }
 
+        public static PythonEnvironment FromInterpreterChecked(FileInfo interpreter) {
+            if (interpreter is null) throw new ArgumentNullException(nameof(interpreter));
+
+            if (!interpreter.Exists)
+                throw new FileNotFoundException("Interpreter file not found", interpreter.FullName);
+
+            var version = TryGetVersion(interpreter);
+            if (version is null)
+                throw new NotSupportedException("Unable to get interpreter version");
+
+            DirectoryInfo? home = null;
+            string? dllPath = null;
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) {
+                home = new DirectoryInfo(interpreter.DirectoryName);
+                dllPath = GetDll(home, version);
+                if (dllPath != null && !File.Exists(dllPath))
+                    throw new NotSupportedException("Unable to find dynamic library");
+            }
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux)
+                || RuntimeInformation.IsOSPlatform(OSPlatform.OSX)) {
+                dllPath = TryLocateSo(interpreter);
+                if (dllPath != null) {
+                    home = TryGuessUnixHome(interpreter, version, dllPath: dllPath);
+                } else {
+                    throw new NotSupportedException("Unable to find dynamic library");
+                }
+            }
+
+            return new PythonEnvironment(interpreter, home,
+                dll: dllPath is null ? null : new FileInfo(dllPath),
+                languageVersion: version,
+                architecture: null);
+        }
+
         /// <summary>
         /// Enumerate Python environments, listed in the PATH environment variable.
         /// </summary>
@@ -260,7 +294,8 @@
             if (match.Success)
                 return match.Groups["ver"].Value;
 
-            if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows) && interpreter.Name == "python")
+            if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows) && interpreter.Name == "python"
+             || RuntimeInformation.IsOSPlatform(OSPlatform.Windows) && interpreter.Name == "python.exe")
                 return TryRunScript(interpreter, PrintVersionScript);
 
             return null;
