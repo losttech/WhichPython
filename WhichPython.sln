@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 15
-VisualStudioVersion = 15.0.28307.271
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.30330.147
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "LostTech.WhichPython", "src\LostTech.WhichPython.csproj", "{7B68FA6F-D206-4560-B8DB-DF79FFECF2F3}"
 EndProject
@@ -13,6 +13,11 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Repo", "Repo", "{58BD14BE-A
 	EndProjectSection
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "WhichPython.App", "app\WhichPython.App.csproj", "{9BC6BDB7-CE49-422F-8B97-1D55C711BE09}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "CI", "CI", "{811E05D3-A990-4573-941E-92D58E14A7D7}"
+	ProjectSection(SolutionItems) = preProject
+		CI\Build+Test.yml = CI\Build+Test.yml
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
