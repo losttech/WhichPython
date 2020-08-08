@@ -399,6 +399,6 @@
         const string PrintSysPathScript = @"import sys; print('\n'.join(sys.path))";
 
         const string LinuxGetLibPathsScript = "from distutils import sysconfig; import os.path as op; v = sysconfig.get_config_vars(); fpaths = [op.join(v[pv], v['LDLIBRARY']) for pv in ('LIBDIR', 'LIBPL')]; print(list(filter(op.exists, fpaths))[0])";
-        const string MacGetLibPathsScript = "from distutils import sysconfig; import os.path as op; v = sysconfig.get_config_vars(); fpaths = [op.join(v[pv], v['LIBRARY']) for pv in ('LIBDIR', 'LIBPL')]; print(list(filter(op.exists, fpaths))[0])";
+        const string MacGetLibPathsScript = "from distutils import sysconfig; import os.path as op; v = sysconfig.get_config_vars(); fpaths = [op.join(v[pv], fname) for pv in ('LIBDIR', 'LIBPL') for fname in (op.splitext(v['LIBRARY'])[0] + '.dylib', v['LIBRARY'])]; print(list(filter(op.exists, fpaths))[0])";
     }
 }

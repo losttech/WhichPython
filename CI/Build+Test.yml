@@ -53,6 +53,8 @@ steps:
       $interpreter = if ($IsWindows) { "python.exe" } else { "python" }
       $interpreter = Join-Path "$(GetPython.pythonLocation)" $interpreter
 
+      Write-Host "$interpreter"
+
       Get-ChildItem -Recurse "$(GetPython.pythonLocation)"
 
       $pyEnvs = (dotnet run --project app/WhichPython.App.csproj interpreter "$interpreter") | Out-String
