@@ -1,68 +1,104 @@
+name: 'CI-$(Date:yyyyMMdd)-$(Rev:rrr)'
+
 trigger:
 - master
-
-strategy:
-  matrix:
-    linux:
-      imageName: 'ubuntu-18.04'
-    mac:
-      imageName: 'macos-10.14'
-    windows:
-      imageName: 'vs2017-win2016'
-
-pool:
-  vmImage: $(imageName)
 
 variables:
   buildConfiguration: 'Debug'
 
-steps:
-- task: UseDotNet@2
-  displayName: 'Install .NET Core SDK 2.1.x'
-  inputs:
-    packageType: 'sdk'
-    version: '2.1.x'
-- task: UseDotNet@2
-  displayName: 'Use .NET Core SDK 3.1.x'
-  inputs:
-    packageType: 'sdk'
-    version: '3.1.x'
-- task: DotNetCoreCLI@2
-  displayName: 'Restore'
-  inputs:
-    command: 'restore'
-    projects: '**/*.csproj'
-- task: DotNetCoreCLI@2
-  displayName: 'Build'
-  inputs:
-    command: 'build'
-    projects: '**/*.csproj'
-    arguments: '--no-restore --configuration $(BuildConfiguration)'
-- task: UsePythonVersion@0
-  displayName: 'Use Python 3.7'
-  name: 'GetPython'
-  inputs:
-    versionSpec: '3.7.x'
-    addToPath: true
-    architecture: 'x64'
-- task: PowerShell@2
-  inputs:
-    targetType: 'inline'
-    pwsh: true
-    script: |
-      Write-Host "$(GetPython.pythonLocation)"
-      $interpreter = if ($IsWindows) { "python.exe" } else { "python" }
-      $interpreter = Join-Path "$(GetPython.pythonLocation)" $interpreter
+jobs:
+  - job: Build_Test
+    strategy:
+      matrix:
+        linux:
+          imageName: 'ubuntu-18.04'
+        mac:
+          imageName: 'macos-10.14'
+        windows:
+          imageName: 'vs2017-win2016'
 
-      Write-Host "$interpreter"
+    pool:
+      vmImage: $(imageName)
 
-      Get-ChildItem -Recurse "$(GetPython.pythonLocation)"
+    steps:
+    - task: UseDotNet@2
+      displayName: 'Install .NET Core SDK 2.1.x'
+      inputs:
+        packageType: 'sdk'
+        version: '2.1.x'
+    - task: UseDotNet@2
+      displayName: 'Use .NET Core SDK 3.1.x'
+      inputs:
+        packageType: 'sdk'
+        version: '3.1.x'
+    - task: DotNetCoreCLI@2
+      displayName: 'Restore'
+      inputs:
+        command: 'restore'
+        projects: '**/*.csproj'
+    - task: DotNetCoreCLI@2
+      displayName: 'Build'
+      inputs:
+        command: 'build'
+        projects: '**/*.csproj'
+        arguments: '--no-restore --configuration $(BuildConfiguration)'
+    - task: UsePythonVersion@0
+      displayName: 'Use Python 3.7'
+      name: 'GetPython'
+      inputs:
+        versionSpec: '3.7.x'
+        addToPath: true
+        architecture: 'x64'
+    - task: PowerShell@2
+      inputs:
+        targetType: 'inline'
+        pwsh: true
+        script: |
+          Write-Host "$(GetPython.pythonLocation)"
+          $interpreter = if ($IsWindows) { "python.exe" } else { "python" }
+          $interpreter = Join-Path "$(GetPython.pythonLocation)" $interpreter
 
-      $pyEnvs = (dotnet run --project app/WhichPython.App.csproj interpreter "$interpreter") | Out-String
-      if (-Not $pyEnvs.Contains("$(GetPython.pythonLocation)")) {
-          Write-Host "$env:PATH"
-          Write-Host "$pyEnvs"
-          exit 1
-      } else {
-          Write-Host $pyEnvs
-      }
+          Write-Host "$interpreter"
+
+          Get-ChildItem -Recurse "$(GetPython.pythonLocation)"
+
+          $pyEnvs = (dotnet run --project app/WhichPython.App.csproj interpreter "$interpreter") | Out-String
+          if (-Not $pyEnvs.Contains("$(GetPython.pythonLocation)")) {
+              Write-Host "$env:PATH"
+              Write-Host "$pyEnvs"
+              exit 1
+          } else {
+              Write-Host $pyEnvs
+          }
+
+  - job: Publish_NuGet
+    dependsOn: Build_Test
+    condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
+
+    pool:
+        vmImage: 'vs2017-win2016'
+
+    steps:
+    - task: UseDotNet@2
+      displayName: 'Use .NET Core SDK 3.1.x'
+      inputs:
+        packageType: 'sdk'
+        version: '3.1.x'
+    - task: DotNetCoreCLI@2
+      displayName: 'Pack'
+      inputs:
+        command: 'pack'
+        packagesToPack: 'src/*.csproj'
+        versioningScheme: 'off'
+        buildProperties: 'VersionSuffix=$(Build.BuildNumber)'
+    - task: NuGetToolInstaller@1
+      displayName: 'Use NuGet 4.9'
+      inputs:
+        versionSpec: '4.9.x'
+    - task: NuGetCommand@2
+      displayName: 'Push'
+      inputs:
+        command: 'push'
+        packagesToPush: '$(Build.ArtifactStagingDirectory)/**/*.nupkg;!$(Build.ArtifactStagingDirectory)/**/*.symbols.nupkg'
+        nuGetFeedType: 'external'
+        publishFeedCredentials: 'Which Python'
