@@ -48,6 +48,7 @@ steps:
 - task: PowerShell@2
   inputs:
     targetType: 'inline'
+    pwsh: true
     script: |
       Write-Host "$(GetPython.pythonLocation)"
       $interpreter = if ($IsWindows) { "python.exe" } else { "python" }
