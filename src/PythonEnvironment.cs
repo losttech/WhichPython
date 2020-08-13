@@ -348,8 +348,10 @@
                 .Split(new[] {Environment.NewLine}, StringSplitOptions.RemoveEmptyEntries)
                 .ToArray();
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-                if (paths.Length == 1)
-                    return paths[0];
+                if (paths.Length == 1) {
+                    string so = Path.ChangeExtension(paths[0], DynamicLibraryExtension);
+                    return File.Exists(so) ? so : paths[0];
+                }
             if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX)) {
                 return paths.Select(libPath => Path.ChangeExtension(libPath, ".dylib"))
                     .FirstOrDefault(File.Exists);
