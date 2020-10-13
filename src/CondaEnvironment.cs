@@ -55,6 +55,7 @@
             CancellationToken cancellation = default)
             => GetEnvironmentRoots(cancellation)
                 .SelectMany(home => {
+                    cancellation.ThrowIfCancellationRequested();
                     var environment = DetectCondaEnvironment(home, cancellation);
                     return environment is null
                         ? Array.Empty<CondaEnvironment>()
@@ -64,14 +65,23 @@
         static IEnumerable<DirectoryInfo> GetEnvironmentRoots(CancellationToken cancellation) {
             string userHome = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
             string condaEnvironmentsFilePath = Path.Combine(userHome, ".conda", "environments.txt");
-            if (!File.Exists(condaEnvironmentsFilePath))
-                yield break;
+            if (File.Exists(condaEnvironmentsFilePath)) {
+                foreach (var potentialRoot in ReadEnvironmentRootsFile(condaEnvironmentsFilePath))
+                    yield return potentialRoot;
+            }
 
             cancellation.ThrowIfCancellationRequested();
 
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) {
+                foreach (var potentialRoot in GetSystemWideEnvironmentRoots(cancellation))
+                    yield return potentialRoot;
+            }
+        }
+
+        static IEnumerable<DirectoryInfo> ReadEnvironmentRootsFile(string filePath) {
             string[] pythonHomes;
             try {
-                pythonHomes = File.ReadAllLines(condaEnvironmentsFilePath);
+                pythonHomes = File.ReadAllLines(filePath);
             }
             catch (FileNotFoundException) { yield break; }
             catch (DirectoryNotFoundException) { yield break; }
@@ -82,6 +92,18 @@
 
                 yield return new DirectoryInfo(home);
             }
+        }
+
+        static IEnumerable<DirectoryInfo> GetSystemWideEnvironmentRoots(CancellationToken cancellation) {
+            string systemWideEnvironmentsPath = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+                "Anaconda3",
+                "envs"
+            );
+            var systemWideEnvironmentsDir = new DirectoryInfo(systemWideEnvironmentsPath);
+            return systemWideEnvironmentsDir.Exists
+                ? systemWideEnvironmentsDir.EnumerateDirectories()
+                : Array.Empty<DirectoryInfo>();
         }
 
         CondaEnvironment(FileInfo interpreterPath, DirectoryInfo home, FileInfo? dll, Version? languageVersion, Architecture? architecture) : base(interpreterPath, home, dll, languageVersion, architecture) { }
