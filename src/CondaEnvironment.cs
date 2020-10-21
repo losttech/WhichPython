@@ -18,11 +18,24 @@
         /// </summary>
         public string Name => this.Home.Name;
         /// <summary>
-        /// Checks specified directory 
+        /// Gets conda environment, that is currently active.
         /// </summary>
-        /// <param name="home"></param>
-        /// <param name="cancellation"></param>
-        /// <returns></returns>
+        public static CondaEnvironment? GetActive(CancellationToken cancellation = default) {
+            string? activeEnvPath = Environment.GetEnvironmentVariable("CONDA_PREFIX");
+            if (activeEnvPath is null) return null;
+            DirectoryInfo home;
+            try {
+                home = new DirectoryInfo(activeEnvPath);
+            }
+            catch (ArgumentException) { return null; }
+            catch (System.Security.SecurityException) { return null; }
+            catch (PathTooLongException) { return null; }
+
+            return DetectCondaEnvironment(home, cancellation);
+        }
+        /// <summary>
+        /// Checks specified directory
+        /// </summary>
         public static CondaEnvironment? DetectCondaEnvironment(DirectoryInfo home, CancellationToken cancellation = default) {
             if (home is null) throw new ArgumentNullException(nameof(home));
 
