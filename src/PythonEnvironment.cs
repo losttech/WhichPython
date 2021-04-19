@@ -208,9 +208,14 @@
 
         static string WindowsGetDll(DirectoryInfo home, Version version)
             => Path.Combine(home.FullName, Invariant($"python{version.Major}{version.Minor}.dll"));
-        static string UnixGetDll(DirectoryInfo home, Version version)
-            => Path.Combine(home.FullName, "lib",
+        static string UnixGetDll(DirectoryInfo home, Version version) {
+            string mVersion = Path.Combine(home.FullName, "lib",
                 Invariant($"libpython{version.Major}.{version.Minor}m{DynamicLibraryExtension}"));
+            if (File.Exists(mVersion)) return mVersion;
+            return Path.Combine(home.FullName, "lib",
+                Invariant($"libpython{version.Major}.{version.Minor}{DynamicLibraryExtension}"));
+        }
+
         internal static string GetDll(DirectoryInfo home, Version version)
             => RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
                 ? WindowsGetDll(home, version)
@@ -221,33 +226,41 @@
           : RuntimeInformation.IsOSPlatform(OSPlatform.OSX) ? ".dylib"
           : ".so";
 
-        static int? WindowsGetVersionDoublet(DirectoryInfo home, CancellationToken cancellation) {
+        static Version? WindowsGetVersion(DirectoryInfo home, CancellationToken cancellation) {
             return home.EnumerateFiles(searchPattern: "python??.dll")
+                .Concat(home.EnumerateFiles(searchPattern: "python???.dll"))
                 .Select(file => {
                     string name = Path.GetFileNameWithoutExtension(file.Name);
-                    string verString = name.Substring(name.Length - 2);
-                    return int.TryParse(verString, NumberStyles.None, CultureInfo.InvariantCulture, out int versionDigits) ? (int?)versionDigits : null;
+                    string verString = name.Substring("python".Length);
+                    int major = verString[0] - '0';
+                    if (major <= 0 || major >= 10) return null;
+                    return int.TryParse(verString.Substring(1), NumberStyles.None, CultureInfo.InvariantCulture, out int minor)
+                        ? new Version(major, minor)
+                        : null;
                 }).WithCancellation(cancellation).Min();
         }
 
-        static int? UnixGetVersionDoublet(DirectoryInfo home, CancellationToken cancellation) {
+        static readonly Regex LibPythonVersionRegex = new Regex(@"^libpython(?<major>[0-9])\.(?<minor>[0-9]+)");
+        static Version? UnixGetVersion(DirectoryInfo home, CancellationToken cancellation) {
             if (home is null) throw new ArgumentNullException(nameof(home));
 
             string lib = Path.Combine(home.FullName, "lib");
             string extension = RuntimeInformation.IsOSPlatform(OSPlatform.OSX) ? ".dylib" : ".so";
-            return Directory.EnumerateFiles(lib, searchPattern: "libpython?.?m" + extension)
+            return Directory.EnumerateFiles(lib, searchPattern: "libpython?.*" + extension)
                 .Select(name => {
                     name = Path.GetFileNameWithoutExtension(name);
-                    string version = name.Substring(name.Length - 4, 3);
-                    version = $"{version[0]}{version[2]}";
-                    return int.TryParse(version, NumberStyles.None, CultureInfo.InvariantCulture, out int versionDigits) ? (int?)versionDigits : null;
+                    var match = LibPythonVersionRegex.Match(name);
+                    if (!match.Success) return null;
+                    int major = int.Parse(match.Groups["major"].Value, NumberStyles.None, CultureInfo.InvariantCulture);
+                    int minor = int.Parse(match.Groups["minor"].Value, NumberStyles.None, CultureInfo.InvariantCulture);
+                    return new Version(major, minor);
                 }).WithCancellation(cancellation).Min();
         }
 
-        internal static int? TryGetVersionDoublet(DirectoryInfo home, CancellationToken cancellation)
+        internal static Version? TryGetVersion(DirectoryInfo home, CancellationToken cancellation)
             => RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
-                ? WindowsGetVersionDoublet(home, cancellation)
-                : UnixGetVersionDoublet(home, cancellation);
+                ? WindowsGetVersion(home, cancellation)
+                : UnixGetVersion(home, cancellation);
 
         static readonly Regex FileNameVersionRegex = new Regex(@"[a-zA-Z]+(?<ver>\d\.\d)(\.exe)?");
         static PythonEnvironment? TryDetectEnvironmentFromInterpreter(FileInfo potentialInterpreter, CancellationToken cancellation = default) {

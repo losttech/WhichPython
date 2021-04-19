@@ -42,11 +42,7 @@
             if (!home.Exists)
                 return null;
 
-            int? versionDoublet = TryGetVersionDoublet(home, cancellation);
-
-            Version? version = versionDoublet == null
-                ? null
-                : new Version(versionDoublet.Value / 10, versionDoublet.Value % 10);
+            var version = TryGetVersion(home, cancellation);
 
             string? interpreterPath = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
                 ? Path.Combine(home.FullName, "python.exe")
