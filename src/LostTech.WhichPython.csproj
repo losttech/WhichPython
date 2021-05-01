@@ -6,7 +6,7 @@
     <Nullable>enable</Nullable>
 
     <PackageId>WhichPython</PackageId>
-    <VersionPrefix>0.3.4</VersionPrefix>
+    <VersionPrefix>0.3.5</VersionPrefix>
     <Description>Allows you to enumerate available Python environments.</Description>
     <Authors>Lost Tech LLC</Authors>
     <Product>Which Python</Product>
