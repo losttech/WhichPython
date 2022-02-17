@@ -9,7 +9,7 @@
             foreach (var environment in PythonEnvironment.EnumerateEnvironments()
                                     .Concat(CondaEnvironment.EnumerateCondaEnvironments())) {
                 Console.WriteLine(this.HomeOnly
-                    ? environment.Home.FullName
+                    ? environment.Home?.FullName
                     : $"{environment.LanguageVersion?.ToString(2) ?? "??"}-{environment.Architecture?.ToString() ?? "???"} @ {environment.Home}");
             }
 
