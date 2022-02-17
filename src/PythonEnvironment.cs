@@ -19,7 +19,7 @@
         /// Path to Python executable.
         /// Usually <c>python.exe</c> on Windows and <c>pythonX.X</c> on Linux
         /// </summary>
-        public FileSystemInfo InterpreterPath { get; }
+        public FileSystemInfo? InterpreterPath { get; }
         /// <summary>
         /// The value of interpreter's PYTHONHOME
         /// </summary>
@@ -40,14 +40,14 @@
         /// <summary>
         /// Creates new instance of <see cref="PythonEnvironment"/>
         /// </summary>
-        /// <param name="interpreterPath">Path to Python executable. Mandatory.
+        /// <param name="interpreterPath">Path to Python executable.
         /// Usually <c>python.exe</c> on Windows and <c>pythonX.X</c> on Linux.</param>
         /// <param name="home">The value of interpreter's PYTHONHOME. Optional.</param>
         /// <param name="dll">Path to the Python dynamic library (useful for embedding). Optional.</param>
         /// <param name="languageVersion">Python language version. Optional.</param>
         /// <param name="architecture">Interpreter architecture</param>
-        public PythonEnvironment(FileSystemInfo interpreterPath, FileSystemInfo? home, FileSystemInfo? dll, Version? languageVersion, Architecture? architecture) {
-            this.InterpreterPath = interpreterPath ?? throw new ArgumentNullException(nameof(interpreterPath));
+        public PythonEnvironment(FileSystemInfo? interpreterPath, FileSystemInfo? home, FileSystemInfo? dll, Version? languageVersion, Architecture? architecture) {
+            this.InterpreterPath = interpreterPath;
             this.Home = home;
             this.DynamicLibraryPath = dll;
             this.LanguageVersion = languageVersion;
